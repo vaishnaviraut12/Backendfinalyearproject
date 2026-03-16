@@ -1,8 +1,20 @@
 const express = require("express");
-const router = express.Router();
-const NFT = require("../models/NFT");
+const router  = express.Router();
+const NFT     = require("../models/NFT");
 
-// POST /api/nfts/save — Save NFT after minting
+// ─── GET /api/nfts/all ───────────────────────────────────────────────────────
+// Returns ALL NFTs from all users — used as marketplace fallback when blockchain is offline
+// MUST be defined BEFORE /:email to avoid Express treating "all" as an email param
+router.get("/all", async (req, res) => {
+  try {
+    const nfts = await NFT.find({}).sort({ createdAt: -1 });
+    res.json(nfts);
+  } catch (err) {
+    res.status(500).json({ error: "Server error fetching all NFTs" });
+  }
+});
+
+// ─── POST /api/nfts/save ─────────────────────────────────────────────────────
 router.post("/save", async (req, res) => {
   try {
     const { ownerEmail, tokenId, name, description, image, category, price, seller, owner, tokenURI } = req.body;
@@ -19,17 +31,7 @@ router.post("/save", async (req, res) => {
   }
 });
 
-// GET /api/nfts/:email — Get all NFTs for a user
-router.get("/:email", async (req, res) => {
-  try {
-    const nfts = await NFT.find({ ownerEmail: req.params.email.toLowerCase() }).sort({ createdAt: -1 });
-    res.json(nfts);
-  } catch (err) {
-    res.status(500).json({ error: "Server error fetching NFTs" });
-  }
-});
-
-// POST /api/nfts/transfer — Transfer NFT ownership after purchase
+// ─── POST /api/nfts/transfer ─────────────────────────────────────────────────
 router.post("/transfer", async (req, res) => {
   try {
     const { tokenId, newOwnerEmail, newOwner } = req.body;
@@ -38,7 +40,7 @@ router.post("/transfer", async (req, res) => {
     const nft = await NFT.findOne({ tokenId: String(tokenId) });
     if (!nft) return res.status(404).json({ error: "NFT not found" });
     nft.ownerEmail = newOwnerEmail.toLowerCase();
-    nft.owner = newOwner;
+    nft.owner      = newOwner;
     await nft.save();
     res.json({ message: "NFT transferred successfully", nft });
   } catch (err) {
@@ -46,7 +48,7 @@ router.post("/transfer", async (req, res) => {
   }
 });
 
-// DELETE /api/nfts/one/:tokenId — Delete single NFT
+// ─── DELETE /api/nfts/one/:tokenId ───────────────────────────────────────────
 router.delete("/one/:tokenId", async (req, res) => {
   try {
     await NFT.findOneAndDelete({ tokenId: req.params.tokenId });
@@ -56,7 +58,7 @@ router.delete("/one/:tokenId", async (req, res) => {
   }
 });
 
-// DELETE /api/nfts/clear/:email — Delete ALL NFTs for a user
+// ─── DELETE /api/nfts/clear/:email ───────────────────────────────────────────
 router.delete("/clear/:email", async (req, res) => {
   try {
     const result = await NFT.deleteMany({ ownerEmail: req.params.email.toLowerCase() });
@@ -66,13 +68,14 @@ router.delete("/clear/:email", async (req, res) => {
   }
 });
 
-// GET /api/nfts — Get all marketplace NFTs
-router.get("/", async (req, res) => {
+// ─── GET /api/nfts/:email ─── MUST be last ───────────────────────────────────
+// Returns NFTs belonging to a specific user email
+router.get("/:email", async (req, res) => {
   try {
-    const nfts = await NFT.find().sort({ createdAt: -1 });
+    const nfts = await NFT.find({ ownerEmail: req.params.email.toLowerCase() }).sort({ createdAt: -1 });
     res.json(nfts);
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error fetching NFTs" });
   }
 });
 
