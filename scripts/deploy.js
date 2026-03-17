@@ -1,23 +1,34 @@
-const { ethers } = require("hardhat");
+const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
 async function main() {
-  const Marketplace = await ethers.getContractFactory("NFTMarketplace");
+  const Marketplace = await hre.ethers.getContractFactory("NFTMarketplace");
   const marketplace = await Marketplace.deploy();
-  await marketplace.deployed();
 
-  console.log("NFTMarketplace deployed to:", marketplace.address);
+  // ethers v6
+  await marketplace.waitForDeployment();
+
+  const address = await marketplace.getAddress();
+  console.log("NFTMarketplace deployed to:", address);
+
+  const frontendDir = path.join(__dirname, "..", "frontend", "src");
+
+  if (!fs.existsSync(frontendDir)) {
+    fs.mkdirSync(frontendDir, { recursive: true });
+  }
 
   const data = {
-    address: marketplace.address,
-    abi: JSON.parse(marketplace.interface.format("json")),
+    address: address,
+    abi: marketplace.interface.format("json"), // ⚠️ STRING, parse करू नकोस
   };
 
-  // write into FRONTEND
-  const frontendPath = path.join(__dirname, "../frontend/src/Marketplace.json");
-  fs.writeFileSync(frontendPath, JSON.stringify(data, null, 2));
-  console.log("Marketplace.json written to frontend");
+  fs.writeFileSync(
+    path.join(frontendDir, "Marketplace.json"),
+    JSON.stringify(data, null, 2)
+  );
+
+  console.log("Marketplace.json written to frontend/src");
 }
 
 main().catch((error) => {

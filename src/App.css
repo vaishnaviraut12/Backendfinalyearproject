@@ -1,38 +1,160 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
+/* ===== CONTAINER ===== */
+.container {
+  padding: 30px;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
   color: white;
 }
 
-.App-link {
-  color: #61dafb;
+/* ===== NAVBAR ===== */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0,0,0,0.45);
+  
+  padding: 15px 25px;
+  border-radius: 14px;
+  margin-bottom: 30px;
+  box-shadow: 0 0 30px rgba(0,0,0,0.6);
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.navbar h1 {
+  font-size: 26px;
+  color: #6ffcff;
+  letter-spacing: 1px;
+}
+
+.navbar button {
+  background: transparent;
+  border: 1px solid #6ffcff;
+  padding: 8px 18px;
+  border-radius: 22px;
+  color: #6ffcff;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+.navbar button:hover {
+  background: #6ffcff;
+  color: black;
+  box-shadow: 0 0 15px #6ffcff;
+}
+
+/* ===== NFT GRID (EXPLORE) ===== */
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  padding-top: 20px;
+  justify-content: flex-start;
+}
+
+/* ===== NFT CARD ===== */
+.nft-card {
+  width: 260px;
+  background: rgba(15, 15, 30, 0.85);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.7);
+  
+  transition: all 0.3s ease;
+}
+
+.nft-card:hover {
+  transform: translateY(-8px) scale(1.04);
+  box-shadow: 0 0 40px #00e5ff;
+}
+
+/* ===== NFT IMAGE ===== */
+.nft-card img {
+  width: 100%;
+  height: 200px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.4);
+  margin-bottom: 12px;
+}
+
+/* ===== NFT TEXT ===== */
+.nft-card h3 {
+  margin: 6px 0;
+  font-size: 18px;
+  color: white;
+}
+
+.nft-card p {
+  font-size: 14px;
+  color: #cfd8dc;
+  margin: 4px 0;
+}
+
+/* ===== PRICE ===== */
+.nft-card .price {
+  font-size: 16px;
+  font-weight: bold;
+  color: #00ffd5;
+  margin: 10px 0;
+}
+
+/* ===== BUTTONS ===== */
+.nft-card button {
+  width: 48%;
+  padding: 8px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+.nft-card button:first-child {
+  background: #2563eb;
+  color: white;
+}
+
+.nft-card button:last-child {
+  background: #f97316;
+  color: white;
+}
+
+.nft-card button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(255,255,255,0.5);
+}
+
+.nft-card button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ===== CREATE NFT CARD ===== */
+.card {
+  background: rgba(15,15,30,0.85);
+  
+  border-radius: 18px;
+  padding: 25px;
+  width: 400px;
+  margin: auto;
+  box-shadow: 0 0 35px rgba(0,0,0,0.7);
+}
+
+.card input,
+.card textarea {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+}
+
+/* ===== PROFILE ===== */
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 25px 0 10px;
+  color: white;
 }
