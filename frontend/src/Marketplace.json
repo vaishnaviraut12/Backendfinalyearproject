@@ -1,0 +1,31 @@
+{
+  "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+  "abi": [
+    "constructor()",
+    "event Approval(address indexed,address indexed,uint256 indexed)",
+    "event ApprovalForAll(address indexed,address indexed,bool)",
+    "event BatchMetadataUpdate(uint256,uint256)",
+    "event MetadataUpdate(uint256)",
+    "event Transfer(address indexed,address indexed,uint256 indexed)",
+    "function approve(address,uint256)",
+    "function balanceOf(address) view returns (uint256)",
+    "function createToken(string,uint256) payable returns (uint256)",
+    "function executeSale(uint256) payable",
+    "function getAllNFTs() view returns ((uint256,address,address,uint256,bool)[])",
+    "function getApproved(uint256) view returns (address)",
+    "function getListPrice() view returns (uint256)",
+    "function getMyNFTs() view returns ((uint256,address,address,uint256,bool)[])",
+    "function isApprovedForAll(address,address) view returns (bool)",
+    "function listPrice() view returns (uint256)",
+    "function name() view returns (string)",
+    "function ownerOf(uint256) view returns (address)",
+    "function safeTransferFrom(address,address,uint256)",
+    "function safeTransferFrom(address,address,uint256,bytes)",
+    "function setApprovalForAll(address,bool)",
+    "function supportsInterface(bytes4) view returns (bool)",
+    "function symbol() view returns (string)",
+    "function tokenURI(uint256) view returns (string)",
+    "function transferFrom(address,address,uint256)",
+    "function unlistNFT(uint256)"
+  ]
+}
