@@ -1,39 +1,65 @@
-const express = require("express");
+const express  = require("express");
 const mongoose = require("mongoose");
-const cors = require("cors");
-const dotenv = require("dotenv");
+const cors     = require("cors");
+const dotenv   = require("dotenv");
 
 dotenv.config();
 
 const app = express();
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
-app.use(express.json());
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman)
+    if (!origin) return callback(null, true);
+    const allowed = [
+      "http://localhost:3000",
+      "http://localhost:3001",
+    ];
+    if (
+      allowed.includes(origin) ||
+      origin.endsWith(".vercel.app") ||
+      origin.endsWith(".netlify.app") ||
+      origin.endsWith(".railway.app")
+    ) {
+      return callback(null, true);
+    }
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+      return callback(null, true);
+    }
+    callback(new Error(CORS blocked: ${origin}));
+  },
+  credentials: true,
+}));
 
-// ─── DEBUG: log every incoming request ────────────────────────
+app.use(express.json({ limit: "10mb" }));
+
+// ─── REQUEST LOGGER ───────────────────────────────────────────
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log([${new Date().toISOString()}] ${req.method} ${req.url});
   next();
 });
 
 // ─── ROUTES ───────────────────────────────────────────────────
-app.use("/api/auth",    require("./routes/auth"));
-app.use("/api/profile", require("./routes/profile"));
-app.use("/api/nfts",    require("./routes/nfts"));
+app.use("/api/auth",          require("./routes/auth"));
+app.use("/api/profile",       require("./routes/profile"));
+app.use("/api/nfts",          require("./routes/nfts"));
 app.use("/api/history",       require("./routes/priceHistory"));
 app.use("/api/notifications", require("./routes/notifications"));
-app.use("/api/public",         require("./routes/publicProfile"));
+app.use("/api/public",        require("./routes/publicProfile"));
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "✅ NFT Marketplace API is running" });
+  res.json({
+    status:   "✅ NFT Marketplace API is running",
+    database: mongoose.connection.readyState === 1 ? "✅ Connected" : "❌ Disconnected",
+    time:     new Date().toISOString(),
+  });
 });
 
-// ─── 404 CATCH-ALL ────────────────────────────────────────────
+// ─── 404 HANDLER ──────────────────────────────────────────────
 app.use((req, res) => {
-  console.error(`❌ 404 - Route not found: ${req.method} ${req.url}`);
-  res.status(404).json({ error: `Route not found: ${req.method} ${req.url}` });
+  res.status(404).json({ error: Route not found: ${req.method} ${req.url} });
 });
 
 // ─── CONNECT DB & START ───────────────────────────────────────
@@ -43,16 +69,7 @@ mongoose
     console.log("✅ MongoDB Connected");
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-      console.log("📡 Routes registered:");
-      console.log("   POST   /api/auth/register");
-      console.log("   POST   /api/auth/login");
-      console.log("   GET    /api/profile/:email");
-      console.log("   POST   /api/profile/save");
-      console.log("   GET    /api/nfts/:email");
-      console.log("   POST   /api/nfts/save");
-      console.log("   POST   /api/nfts/transfer");
-      console.log("   DELETE /api/nfts/:tokenId");
+      console.log(🚀 Server running on port ${PORT});
     });
   })
   .catch((err) => {
