@@ -10,12 +10,14 @@ const app = express();
 // ─── MIDDLEWARE ───────────────────────────────────────────────
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman)
+    // Allow requests with no origin (mobile apps, Postman, curl)
     if (!origin) return callback(null, true);
+    
     const allowed = [
       "http://localhost:3000",
       "http://localhost:3001",
     ];
+    
     if (
       allowed.includes(origin) ||
       origin.endsWith(".vercel.app") ||
@@ -24,10 +26,13 @@ app.use(cors({
     ) {
       return callback(null, true);
     }
+    
     if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
       return callback(null, true);
     }
-    callback(new Error(CORS blocked: ${origin}));
+    
+    // FIX ADDED HERE: Backticks are required for ${origin}
+    callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true,
 }));
@@ -36,7 +41,7 @@ app.use(express.json({ limit: "10mb" }));
 
 // ─── REQUEST LOGGER ───────────────────────────────────────────
 app.use((req, res, next) => {
-  console.log([${new Date().toISOString()}] ${req.method} ${req.url});
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
@@ -59,7 +64,7 @@ app.get("/", (req, res) => {
 
 // ─── 404 HANDLER ──────────────────────────────────────────────
 app.use((req, res) => {
-  res.status(404).json({ error: Route not found: ${req.method} ${req.url} });
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.url}` });
 });
 
 // ─── CONNECT DB & START ───────────────────────────────────────
@@ -69,7 +74,7 @@ mongoose
     console.log("✅ MongoDB Connected");
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-      console.log(🚀 Server running on port ${PORT});
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
