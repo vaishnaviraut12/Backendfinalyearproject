@@ -1104,7 +1104,7 @@ function App() {
     try {
       let readProvider;
       
-      // ✅ FIX: Use MetaMask if available, otherwise check if we are local
+      // ✅ Use MetaMask if available, otherwise check if we are local
       if (window.ethereum) {
         readProvider = new ethers.BrowserProvider(window.ethereum);
       } else if (window.location.hostname === "localhost") {
@@ -1165,7 +1165,6 @@ function App() {
     }
     setLoading(false);
   }
-
   async function resolveNFTs(data, contractInstance) {
     const c = contractInstance || contract;
     return Promise.all(data.map(async (i) => {
