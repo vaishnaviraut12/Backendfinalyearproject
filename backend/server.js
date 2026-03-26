@@ -7,54 +7,66 @@ dotenv.config();
 
 const app = express();
 
-// ─── MIDDLEWARE ───────────────────────────────────────────────
-// Replace the current app.use(cors(...)) with this:
+// ─── CORS - Allow Vercel domains ──────────────────────────────────
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  /^https:\/\/.*\.vercel\.app$/,
+  /^https:\/\/.*\.railway\.app$/,
+  /^https:\/\/.*\.netlify\.app$/
+];
+
 app.use(cors({
-  origin: true, // This allows ALL origins (Vercel, Localhost, etc.)
-  credentials: true
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.some(pattern => 
+      pattern instanceof RegExp ? pattern.test(origin) : pattern === origin
+    )) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS not allowed for origin: ${origin}`));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-// Increase limit to allow base64 NFT images
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json());
 
-// ─── REQUEST LOGGER ───────────────────────────────────────────
+// ─── DEBUG: log every incoming request ────────────────────────────
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.headers.origin || "unknown"}`);
   next();
 });
 
-// ─── ROUTES ───────────────────────────────────────────────────
-app.use("/api/auth",          require("./routes/auth"));
-app.use("/api/profile",       require("./routes/profile"));
-app.use("/api/nfts",          require("./routes/nfts"));
+// ─── ROUTES ───────────────────────────────────────────────────────
+app.use("/api/auth",    require("./routes/auth"));
+app.use("/api/profile", require("./routes/profile"));
+app.use("/api/nfts",    require("./routes/nfts"));
 app.use("/api/history",       require("./routes/priceHistory"));
 app.use("/api/notifications", require("./routes/notifications"));
-app.use("/api/public",        require("./routes/publicProfile"));
+app.use("/api/public",         require("./routes/publicProfile"));
 
-// ─── HEALTH CHECK ─────────────────────────────────────────────
+// ─── HEALTH CHECK ─────────────────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({
-    status:   "✅ NFT Marketplace API is running",
-    database: mongoose.connection.readyState === 1 ? "✅ Connected" : "❌ Disconnected",
-    time:     new Date().toISOString(),
-  });
+  res.json({ status: "✅ NFT Marketplace API is running" });
 });
 
-// ─── 404 HANDLER ──────────────────────────────────────────────
+// ─── 404 CATCH-ALL ────────────────────────────────────────────────
 app.use((req, res) => {
+  console.error(`❌ 404 - Route not found: ${req.method} ${req.url}`);
   res.status(404).json({ error: `Route not found: ${req.method} ${req.url}` });
 });
 
-// ─── CONNECT DB & START ───────────────────────────────────────
+// ─── CONNECT DB & START ───────────────────────────────────────────
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB Connected");
-    // FIXED: Added || operator
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-      // FIXED: Added backticks
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
   })
   .catch((err) => {
