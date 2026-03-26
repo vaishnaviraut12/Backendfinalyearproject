@@ -3,18 +3,45 @@ import { Navigation, Pagination, Autoplay } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import axios from "axios";
 import marketplace from "./Marketplace.json";
 import "./App.css";
 import Sidebar from "./components/Sidebar";
 
-// API Config
+// 1. Define your API at the very top (outside the component)
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
-const PINATA_JWT = process.env.REACT_APP_PINATA_JWT;
 
-/* ================= TOAST COMPONENT ================= */
+// 2. Inside your App component, update your connection logic:
+const loadBlockchainData = async () => {
+  try {
+    // Check if MetaMask is installed
+    if (window.ethereum) {
+      // ✅ Use MetaMask as the provider
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+      
+      // Initialize your contract with the signer
+      // const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+      
+      console.log("Connected to MetaMask:", userAddress);
+    } else {
+      // ❌ Fallback if no MetaMask is found
+      console.log("MetaMask not found. Please install it.");
+      
+      // ONLY use localhost if you are actually working on your computer
+      if (window.location.hostname === "localhost") {
+        const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+      }
+    }
+  } catch (error) {
+    console.error("Connection error:", error);
+  }
+};
+const PINATA_JWT = process.env.REACT_APP_PINATA_JWT;
+/* ================= TOAST ================= */
 const Toast = ({ toasts, removeToast }) => (
   <div style={{ position:"fixed", bottom:"30px", right:"30px", zIndex:9999, display:"flex", flexDirection:"column", gap:"12px" }}>
     {toasts.map(t => (
@@ -40,7 +67,8 @@ const Toast = ({ toasts, removeToast }) => (
   </div>
 );
 
-/* ================= MODAL COMPONENT ================= */
+
+/* ================= IN-APP MODAL (replaces alert/confirm) ================= */
 const Modal = ({ modal, onClose, onConfirm }) => {
   if (!modal) return null;
   const isConfirm = modal.type === "confirm";
@@ -181,17 +209,12 @@ const PublicProfileView = ({ wallet, onBack, API, currentWallet }) => {
           ) : (
             <div className="grid">
               {displayNFTs.map((nft, i) => (
-                <div key={i} className="nft-card" style={{
-                  background: "#222b45",
-                  border: "1px solid #394c5f",
-                  borderRadius: "12px",
-                  overflow: "hidden"
-                }}>
+                <div key={i} className="nft-card">
                   <img src={nft.image} alt={nft.name} style={{ width:"100%", borderRadius:"12px 12px 0 0" }} />
                   <div style={{ padding:"12px" }}>
                     <h3 style={{ margin:"0 0 5px", fontSize:"0.95rem" }}>{nft.name}</h3>
                     <p style={{ margin:"0 0 6px", color:"#00f6ff", fontWeight:"bold", fontSize:"0.88rem" }}>{nft.price} ETH</p>
-                    <span style={{ fontSize:"0.72rem", color:"#7B61FF", background:"rgba(123,97,255,0.1)", padding:"2px 8px", borderRadius:"20px" }}>{nft.category}</span>
+                    <span style={{ fontSize:"0.72rem", color:"#7B61FF", background:"rgba(123,97,255,0.15)", padding:"2px 8px", borderRadius:"20px" }}>{nft.category}</span>
                   </div>
                 </div>
               ))}
@@ -256,7 +279,7 @@ const NFTDetailView = ({ nft, wallet, authUser, onBack, onBuy, onUnlist, API }) 
   const toX = (i) => chartPoints.length < 2 ? padL+innerW/2 : padL+(i/(chartPoints.length-1))*innerW;
   const toY = (price) => maxPrice===minPrice ? padT+innerH/2 : padT+innerH-((price-minPrice)/(maxPrice-minPrice))*innerH;
   const polyline = chartPoints.map((p,i) => `${toX(i)},${toY(p.price)}`).join(" ");
-  const areaPath = chartPoints.length > 0 ? `M${toX(0)},${toY(chartPoints[0].price)} `+chartPoints.map((p,i) => `L${toX(i)},${toY(p.price)}`).join(" ") + ` L${toX(chartPoints.length-1)},${padT+innerH} L${toX(0)},${padT+innerH} Z` : "";
+  const areaPath = chartPoints.length > 0 ? `M${toX(0)},${toY(chartPoints[0].price)} `+chartPoints.map((p,i) => `L${toX(i)},${toY(p.price)}`).join(" ")+` L${toX(chartPoints.length-1)},${padT+innerH} L${toX(0)},${padT+innerH} Z` : "";
   const eventColor = (e) => e==="Minted"?"#7B61FF":e==="Sale"?"#00f6ff":"#ef4444";
   return (
     <div className="collection-page animate">
@@ -402,7 +425,7 @@ const DropView = ({ onAlert }) => {
 const ActivityView = ({ marketNFTs, savedNFTs, wallet, onSelectNFT }) => {
   const [activeTab, setActiveTab] = React.useState("all");
   const activities = [
-    ...savedNFTs.map(n => ({ type:"Mint",    name:n.name, price:n.price, wallet:n.seller||"—", time:"Recent", image:n.image, nft:n })),
+    ...savedNFTs.map(n => ({ type:"Mint",    name:n.name, price:n.price,                      wallet:n.seller||"—", time:"Recent", image:n.image, nft:n })),
     ...marketNFTs.map(n =>  ({ type:"Listing", name:n.name, price:ethers.formatEther(n.price), wallet:n.seller||"—", time:"Active", image:n.image, nft:n })),
   ];
   const filtered = activeTab === "all" ? activities : activities.filter(a => a.type.toLowerCase() === activeTab);
@@ -415,7 +438,7 @@ const ActivityView = ({ marketNFTs, savedNFTs, wallet, onSelectNFT }) => {
       {/* TABS */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"20px", flexWrap:"wrap" }}>
         {["all","mint","listing","sale"].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding:"7px 18px", borderRadius:"20px", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"600", background: activeTab===tab ? "rgba(0,246,255,0.15)" : "rgba(255,255,255,0.05)", color: activeTab===tab ? "#00e5ff" : "#94a3b8", outline: activeTab===tab ? "1px solid rgba(0,246,255,0.3)" : "none" }}>
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding:"7px 18px", borderRadius:"20px", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"600", background: activeTab===tab ? "rgba(0,246,255,0.15)" : "rgba(255,255,255,0.05)", color: activeTab===tab ? "#00f6ff" : "#94a3b8", outline: activeTab===tab ? "1px solid rgba(0,246,255,0.3)" : "none" }}>
             {tab.charAt(0).toUpperCase()+tab.slice(1)}
           </button>
         ))}
@@ -516,6 +539,7 @@ const HelpView = () => {
   );
 };
 
+
 /* ================= STUDIO VIEW ================= */
 const StudioView = ({ authUser, wallet, onAlert, onMint }) => {
   const [colName, setColName] = React.useState("");
@@ -574,26 +598,26 @@ const StudioView = ({ authUser, wallet, onAlert, onMint }) => {
 /* ================= LOOTBOX DATA — YOUR REAL NFT IMAGES ================= */
 const LOOT_ITEMS = [
   // BRONZE — Uncommon (brown/tan themed)
-  { id:"b1", name:"Bronze Warrior", image:"/loot/Nft3.png", rarity:"bronze", price:"0.03", desc:"A seasoned warrior with curly bronze locks.", category:"Gaming" },
-  { id:"b2", name:"Bronze Spirit", image:"/loot/Nft4.png", rarity:"bronze", price:"0.025",desc:"Cheerful spirit with flowing bronze hair.", category:"Art"    },
-  { id:"b3", name:"Bronze Guardian", image:"/loot/Nft5.png", rarity:"bronze", price:"0.028",desc:"Guardian of the bronze realm, always smiling.", category:"Art"    },
-  { id:"b4", name:"Bronze Elder", image:"/loot/Nft14.png", rarity:"bronze", price:"0.035",desc:"Ancient elder bearing the bronze crest.", category:"Gaming" },
+  { id:"b1", name:"Bronze Warrior",     image:"/loot/Nft3.png",  rarity:"bronze", price:"0.03", desc:"A seasoned warrior with curly bronze locks.",      category:"Gaming" },
+  { id:"b2", name:"Bronze Spirit",      image:"/loot/Nft4.png",  rarity:"bronze", price:"0.025",desc:"Cheerful spirit with flowing bronze hair.",         category:"Art"    },
+  { id:"b3", name:"Bronze Guardian",    image:"/loot/Nft5.png",  rarity:"bronze", price:"0.028",desc:"Guardian of the bronze realm, always smiling.",     category:"Art"    },
+  { id:"b4", name:"Bronze Elder",       image:"/loot/Nft14.png", rarity:"bronze", price:"0.035",desc:"Ancient elder bearing the bronze crest.",           category:"Gaming" },
   // SILVER — Common (blue/dark themed)
-  { id:"s1", name:"Silver Knight", image:"/loot/Nft12.png", rarity:"silver", price:"0.06", desc:"Knight of the silver order, battle-hardened.", category:"Gaming" },
-  { id:"s2", name:"Silver Phantom", image:"/loot/Nft9.png",  rarity:"silver", price:"0.055",desc:"Phantom warrior with silver curls.", category:"Art"    },
-  { id:"s3", name:"Silver Specter", image:"/loot/Nft13.png", rarity:"silver", price:"0.065",desc:"Pointed silver helm from the dark ages.", category:"Gaming" },
-  { id:"s4", name:"Silver Shield", image:"/loot/Nft11.png", rarity:"silver", price:"0.07", desc:"Silver shield bearer of the north.", category:"Gaming" },
-  { id:"s5", name:"Silver Wanderer", image:"/loot/Nft10.png", rarity:"silver", price:"0.058",desc:"Wanderer of the silver mist.", category:"Art"    },
+  { id:"s1", name:"Silver Knight",      image:"/loot/Nft12.png", rarity:"silver", price:"0.06", desc:"Knight of the silver order, battle-hardened.",      category:"Gaming" },
+  { id:"s2", name:"Silver Phantom",     image:"/loot/Nft9.png",  rarity:"silver", price:"0.055",desc:"Phantom warrior with silver curls.",                category:"Art"    },
+  { id:"s3", name:"Silver Specter",     image:"/loot/Nft13.png", rarity:"silver", price:"0.065",desc:"Pointed silver helm from the dark ages.",           category:"Gaming" },
+  { id:"s4", name:"Silver Shield",      image:"/loot/Nft11.png", rarity:"silver", price:"0.07", desc:"Silver shield bearer of the north.",                category:"Gaming" },
+  { id:"s5", name:"Silver Wanderer",    image:"/loot/Nft10.png", rarity:"silver", price:"0.058",desc:"Wanderer of the silver mist.",                      category:"Art"    },
   // GOLD — Rare (yellow/gold themed)
-  { id:"g1", name:"Gold Helm", image:"/loot/Nft1.png", rarity:"gold", price:"0.15", desc:"Legendary gold helm worn by ancient champions.", category:"Gaming" },
-  { id:"g2", name:"Gold Shield Bearer", image:"/loot/Nft2.png", rarity:"gold", price:"0.18", desc:"Bearer of the sacred golden shield.", category:"Gaming" },
-  { id:"g3", name:"Gold Sage", image:"/loot/Nft14.png", rarity:"gold", price:"0.20", desc:"Wise sage crowned in pure gold.", category:"Art"    },
-  { id:"g4", name:"Gold Conqueror", image:"/loot/Nft15.png", rarity:"gold", price:"0.22", desc:"Conqueror's pointed gold helm, feared in battle.", category:"Gaming" },
+  { id:"g1", name:"Gold Helm",          image:"/loot/Nft1.png",  rarity:"gold",   price:"0.15", desc:"Legendary gold helm worn by ancient champions.",    category:"Gaming" },
+  { id:"g2", name:"Gold Shield Bearer", image:"/loot/Nft2.png",  rarity:"gold",   price:"0.18", desc:"Bearer of the sacred golden shield.",               category:"Gaming" },
+  { id:"g3", name:"Gold Sage",          image:"/loot/Nft14.png", rarity:"gold",   price:"0.20", desc:"Wise sage crowned in pure gold.",                   category:"Art"    },
+  { id:"g4", name:"Gold Conqueror",     image:"/loot/Nft15.png", rarity:"gold",   price:"0.22", desc:"Conqueror's pointed gold helm, feared in battle.",  category:"Gaming" },
   // PURPLE — Legendary (purple/violet themed)
-  { id:"p1", name:"Purple Champion", image:"/loot/Nft7.png", rarity:"purple", price:"0.5",  desc:"Champion of the purple realm. Extremely rare.", category:"Gaming" },
-  { id:"p2", name:"Purple Specter", image:"/loot/Nft8.png", rarity:"purple", price:"0.6",  desc:"Spectral purple helm from beyond the veil.", category:"Gaming" },
-  { id:"p3", name:"Purple Force", image:"/loot/Nft6.png", rarity:"purple", price:"0.55", desc:"The purple force shield — only 3 exist.", category:"Gaming" },
-  { id:"p4", name:"Purple Spirit", image:"/loot/Nft10.png", rarity:"purple", price:"0.65", desc:"Spirit of the purple woods, mystical and rare.", category:"Art"    },
+  { id:"p1", name:"Purple Champion",    image:"/loot/Nft7.png",  rarity:"purple", price:"0.5",  desc:"Champion of the purple realm. Extremely rare.",     category:"Gaming" },
+  { id:"p2", name:"Purple Specter",     image:"/loot/Nft8.png",  rarity:"purple", price:"0.6",  desc:"Spectral purple helm from beyond the veil.",        category:"Gaming" },
+  { id:"p3", name:"Purple Force",       image:"/loot/Nft6.png",  rarity:"purple", price:"0.55", desc:"The purple force shield — only 3 exist.",           category:"Gaming" },
+  { id:"p4", name:"Purple Spirit",      image:"/loot/Nft10.png", rarity:"purple", price:"0.65", desc:"Spirit of the purple woods, mystical and rare.",    category:"Art"    },
 ];
 
 const RARITY_CONFIG = {
@@ -808,7 +832,6 @@ const LootboxView = ({ wallet, authUser, mintNFTFromLoot }) => {
 
 /* ================= APP ================= */
 function App() {
-  // State declarations (merging both approaches)
   const [authUser, setAuthUser] = useState(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -821,8 +844,9 @@ function App() {
   const [wallet, setWallet] = useState("");
   const [contract, setContract] = useState(null);
   const [marketNFTs, setMarketNFTs] = useState([]);
-  const [savedNFTs, setSavedNFTs] = useState([]);
+  const [mintedNFTs, setMintedNFTs] = useState([]);
   const [purchasedNFTs, setPurchasedNFTs] = useState([]);
+  const [savedNFTs, setSavedNFTs] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState([]);
@@ -843,65 +867,76 @@ function App() {
     try { return JSON.parse(localStorage.getItem("nft_likes") || "{}"); } catch { return {}; }
   });
   const [sortBy, setSortBy] = useState("default");
-  const [modal, setModal] = useState(null);
+  const [modal, setModal] = useState(null); // { type, variant, icon, title, message, confirmText, onConfirm }
+  // ── Profile settings fields ──────────────────────────────
+  const [username, setUsername] = useState("");
+  const [bio, setBio] = useState("");
+  const [twitter, setTwitter] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [discord, setDiscord] = useState("");
 
-  // Toast helpers
-  const showToast = (type, message, price = "") => {
+  function showToast(type, message, price = "") {
     const id = Date.now();
     setToasts(prev => [...prev, { id, type, message, price }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
-  };
-  const removeToast = (id) => { setToasts(prev => prev.filter(t => t.id !== id)); };
+  }
+  function removeToast(id) { setToasts(prev => prev.filter(t => t.id !== id)); }
 
-  // Dark Mode toggle
-  const toggleTheme = () => {
+  // ── Dark/Light mode ───────────────────────────────────────
+  function toggleTheme() {
     setDarkMode(prev => {
       const next = !prev;
       localStorage.setItem("theme", next ? "dark" : "light");
       return next;
     });
-  };
+  }
 
-  // Like toggle
-  const toggleLike = (tokenId) => {
+  // ── Like / Favorite NFT ───────────────────────────────────
+  function toggleLike(tokenId) {
     setLikes(prev => {
       const key = String(tokenId);
       const updated = { ...prev, [key]: !prev[key] };
       localStorage.setItem("nft_likes", JSON.stringify(updated));
       return updated;
     });
-  };
-  const getLikeCount = (tokenId) => {
+  }
+
+  function getLikeCount(tokenId) {
     return likes[String(tokenId)] ? 1 : 0;
-  };
+  }
 
-  // Modal helpers
-  const showAlert = (message, variant = "info", title = "", icon = "") => setModal({ type:"alert", variant, title, message, icon });
-  const showConfirm = (message, onConfirm, title = "", confirmText = "Confirm", variant = "warning") => setModal({ type:"confirm", variant, title, message, confirmText, onConfirm });
+  // ── Modal helpers (replaces browser alert/confirm) ────────
+  function showAlert(message, variant = "info", title = "", icon = "") {
+    setModal({ type:"alert", variant, title, message, icon });
+  }
 
-  // Notification handling
-  const fetchNotifications = async (email) => {
+  function showConfirm(message, onConfirm, title = "", confirmText = "Confirm", variant = "warning") {
+    setModal({ type:"confirm", variant, title, message, confirmText, onConfirm });
+  }
+
+  async function fetchNotifications(email) {
     try { const res = await axios.get(`${API}/api/notifications/${email}`); setNotifications(res.data); setUnreadCount(res.data.filter(n => !n.read).length); } catch(e) {}
-  };
-  const addNotification = async (userEmail, type, message, nftName, nftImage, price, tokenId) => {
+  }
+  async function addNotification(userEmail, type, message, nftName, nftImage, price, tokenId) {
     try { await axios.post(`${API}/api/notifications/add`, { userEmail, type, message, nftName, nftImage, price, tokenId }); await fetchNotifications(userEmail); } catch(e) {}
-  };
-  const markAllRead = async () => {
+  }
+  async function markAllRead() {
     if (!authUser) return;
     try { await axios.patch(`${API}/api/notifications/read/${authUser.email}`); setUnreadCount(0); setNotifications(prev => prev.map(n => ({...n, read:true}))); } catch(e) {}
-  };
-  const clearNotifications = async () => {
+  }
+  async function clearNotifications() {
     if (!authUser) return;
     try { await axios.delete(`${API}/api/notifications/clear/${authUser.email}`); setNotifications([]); setUnreadCount(0); } catch(e) {}
-  };
+  }
 
-  // Load session on mount
+  // ── Restore session on page load ─────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem("user");
     if (saved) {
       try {
         const user = JSON.parse(saved);
         setAuthUser(user);
+        // Immediately load this user's NFTs
         axios.get(`${API}/api/nfts/${user.email}`)
           .then(res => setSavedNFTs(res.data || []))
           .catch(() => {});
@@ -911,7 +946,7 @@ function App() {
     }
   }, []);
 
-  // Apply theme
+  // ── Apply theme to document ───────────────────────────────
   useEffect(() => {
     const root = document.documentElement;
     if (darkMode) {
@@ -925,52 +960,50 @@ function App() {
     }
   }, [darkMode]);
 
-  // Load profile and NFTs
   useEffect(() => {
     if (authUser) {
+      // Load profile
       axios.get(`${API}/api/profile/${authUser.email}`)
         .then(res => {
           setProfile(res.data);
-          if(res.data){
-            setUsername(res.data.username || "");
-            setBio(res.data.bio || "");
-            setTwitter(res.data.twitter || "");
+          if (res.data) {
+            setUsername(res.data.username   || "");
+            setBio(res.data.bio             || "");
+            setTwitter(res.data.twitter     || "");
             setInstagram(res.data.instagram || "");
-            setDiscord(res.data.discord || "");
+            setDiscord(res.data.discord     || "");
           }
-        })
-        .catch(() => {});
+        }).catch(() => {});
+      // Load THIS user's saved NFTs from MongoDB
       axios.get(`${API}/api/nfts/${authUser.email}`)
         .then(res => setSavedNFTs(res.data || []))
         .catch(() => setSavedNFTs([]));
     } else {
+      // Logged out — clear user data
       setProfile(null);
       setSavedNFTs([]);
     }
   }, [authUser]);
 
-  // Load NFTs on relevant view changes
   useEffect(() => {
-    if (["market", "discover", "collections"].includes(view)) {
+    // Always load market NFTs when visiting these views
+    if (view === "market" || view === "discover" || view === "collections") {
       loadAllNFTs();
     }
   }, [contract, wallet, view, authUser]);
 
-  // Load NFTs on first mount
+  // Also load on first mount regardless of view
   useEffect(() => {
     loadAllNFTs();
   }, []);
 
-  // Notifications refresher
   useEffect(() => {
-    if (authUser) {
-      fetchNotifications(authUser.email);
-      const interval = setInterval(() => fetchNotifications(authUser.email), 30000);
-      return () => clearInterval(interval);
-    }
+    if (!authUser) return;
+    fetchNotifications(authUser.email);
+    const interval = setInterval(() => fetchNotifications(authUser.email), 30000);
+    return () => clearInterval(interval);
   }, [authUser]);
 
-  // Wallet account change
   useEffect(() => {
     if (!window.ethereum) return;
     const syncWallet = async () => {
@@ -1014,38 +1047,101 @@ function App() {
     return () => { window.ethereum.removeListener("accountsChanged", handleAccountChange); window.ethereum.removeListener("chainChanged", handleChainChange); clearInterval(pollInterval); };
   }, [authUser]);
 
-  // Blockchain load all NFTs
+  async function login() {
+    try {
+      const res = await axios.post(`${API}/api/auth/login`, { email, password });
+      const user = res.data.user;
+      localStorage.setItem("user", JSON.stringify(user));
+      setAuthUser(user);
+      // Load this user's NFTs immediately after login
+      try {
+        const nftRes = await axios.get(`${API}/api/nfts/${user.email}`);
+        setSavedNFTs(nftRes.data || []);
+      } catch(_) {}
+      setView("market");
+      setEmail(""); setPassword("");
+    } catch(err) {
+      showAlert("Login failed. Check your email/password and make sure the backend is running.", "error", "Login Failed", "🔐");
+    }
+  }
+
+  async function register() {
+    try {
+      await axios.post(`${API}/api/auth/register`, { name, email, password });
+      showAlert("Account created! You can now login with your credentials.", "success", "Registered!", "🎉");
+      setView("login");
+    } catch(err) { showAlert("Registration failed. Please try again.", "error", "Error"); }
+  }
+
+  function logout() {
+    localStorage.removeItem("user");
+    localStorage.removeItem("nft_likes");
+    setAuthUser(null);
+    setWallet(""); setContract(null);
+    setSavedNFTs([]); setProfile(null);
+    setNotifications([]); setUnreadCount(0);
+    setUsername(""); setBio(""); setTwitter(""); setInstagram(""); setDiscord("");
+    setView("market");
+    // Reload marketplace without user context
+    loadAllNFTs();
+  }
+
+  async function connectWallet() {
+    if (!window.ethereum) return showAlert("MetaMask is not installed. Please install it from metamask.io and refresh the page.", "error", "MetaMask Required", "🦊");
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const marketplaceContract = new ethers.Contract(marketplace.address, marketplace.abi, signer);
+    setWallet(accounts[0]);
+    setContract(marketplaceContract);
+    if (authUser) { try { await axios.post(`${API}/api/profile/save`, { email: authUser.email, wallet: accounts[0] }); } catch(e) {} }
+  }
+
   async function loadAllNFTs() {
     setLoading(true);
     let blockchainWorking = false;
+
     try {
       let readProvider;
+      
+      // ✅ Use MetaMask if available, otherwise check if we are local
       if (window.ethereum) {
         readProvider = new ethers.BrowserProvider(window.ethereum);
       } else if (window.location.hostname === "localhost") {
         readProvider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
       }
+
       if (readProvider) {
         const readContract = new ethers.Contract(marketplace.address, marketplace.abi, readProvider);
-        const listed = await readContract.getAllNFTs();
+        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 3000));
+        
+        // Use getAllNFTs from the contract
+        const listed = await Promise.race([readContract.getAllNFTs(), timeout]);
         const resolved = await resolveNFTs(listed, readContract);
+        
         setMarketNFTs(resolved);
         setBlockchainOnline(true);
         blockchainWorking = true;
-        // Load user-specific NFTs if wallet connected
+
+        // Load personal NFTs if wallet connected
         if (contract && wallet) {
           try {
             const mine = await contract.getMyNFTs();
             const myResolved = await resolveNFTs(mine, contract);
             setMintedNFTs(myResolved.filter(n => n.seller?.toLowerCase() === wallet.toLowerCase()));
-            setPurchasedNFTs(myResolved.filter(n => n.owner?.toLowerCase() === wallet.toLowerCase() && n.seller?.toLowerCase() !== wallet.toLowerCase()));
+            setPurchasedNFTs(myResolved.filter(n =>
+              n.owner?.toLowerCase() === wallet.toLowerCase() &&
+              n.seller?.toLowerCase() !== wallet.toLowerCase()
+            ));
           } catch (_) {}
         }
       }
-    } catch (_) {
+    } catch (chainErr) {
       console.log("Blockchain connection failed, falling back to DB...");
       blockchainWorking = false;
     }
+
+    // ── Fallback: load ALL NFTs from MongoDB ─────────────────────────
     if (!blockchainWorking) {
       setBlockchainOnline(false);
       try {
@@ -1062,14 +1158,13 @@ function App() {
           fromDB: true,
         }));
         setMarketNFTs(dbNFTs);
-      } catch (e) {
-        console.error("Database fetch failed:", e);
+      } catch (dbErr) {
+        console.error("Database fetch failed:", dbErr);
         setMarketNFTs([]);
       }
     }
     setLoading(false);
   }
-
   async function resolveNFTs(data, contractInstance) {
     const c = contractInstance || contract;
     return Promise.all(data.map(async (i) => {
@@ -1080,7 +1175,6 @@ function App() {
     }));
   }
 
-  // Upload to Pinata
   async function uploadToPinata(selectedFile) {
     const data = new FormData();
     data.append("file", selectedFile);
@@ -1088,7 +1182,6 @@ function App() {
     return `https://gateway.pinata.cloud/ipfs/${res.data.IpfsHash}`;
   }
 
-  // Mint NFT
   async function mintNFT() {
     if (!authUser) return showAlert("Please login to your account first.", "warning", "Login Required", "🔐");
     if (!wallet) return showAlert("Connect your MetaMask wallet to continue.", "warning", "Wallet Required", "🦊");
@@ -1141,7 +1234,6 @@ function App() {
     finally { setLoading(false); }
   }
 
-  // Buy NFT
   async function buyNFT(id, nftPrice) {
     if (!authUser) return showAlert("Please login to your account first.", "warning", "Login Required", "🔐");
     setLoading(true);
@@ -1168,7 +1260,6 @@ function App() {
     finally { setLoading(false); }
   }
 
-  // Unlist NFT
   async function unlistNFT(id) {
     setLoading(true);
     try { const tx = await contract.unlistNFT(id); await tx.wait(); loadAllNFTs(); }
@@ -1176,7 +1267,6 @@ function App() {
     finally { setLoading(false); }
   }
 
-  // Loot NFT
   async function mintNFTFromLoot(item) {
     if (!authUser) throw new Error("Please login first");
     if (!wallet) throw new Error("Please connect your wallet");
@@ -1202,13 +1292,15 @@ function App() {
     loadAllNFTs();
   }
 
-  // Delete NFT
   async function deleteNFT(tokenId) {
     showConfirm(
       "This will permanently remove this NFT from your collection. This cannot be undone.",
       async () => {
-        try { await axios.delete(`${API}/api/nfts/one/${tokenId}`); setSavedNFTs(prev => prev.filter(n => String(n.tokenId) !== String(tokenId))); showToast("info", "NFT removed from collection"); }
-        catch(e) { showToast("error", "Failed to remove NFT"); }
+        try {
+          await axios.delete(`${API}/api/nfts/one/${tokenId}`);
+          setSavedNFTs(prev => prev.filter(n => String(n.tokenId) !== String(tokenId)));
+          showToast("info", "NFT removed from collection");
+        } catch(err) { showToast("error", "Failed to remove NFT"); }
       },
       "Remove NFT",
       "Remove",
@@ -1216,23 +1308,23 @@ function App() {
     );
   }
 
-  // Save profile
   async function saveProfile() {
     if (!authUser) return showAlert("Please login to your account first.", "warning", "Login Required", "🔐");
     try {
       const avatarURL = avatarFile ? await uploadToPinata(avatarFile) : (profile?.avatar || "");
       const bannerURL = bannerFile ? await uploadToPinata(bannerFile) : (profile?.banner || "");
       await axios.post(`${API}/api/profile/save`, {
-        email: authUser.email,
-        avatar: avatarURL,
-        banner: bannerURL,
+        email:    authUser.email,
+        avatar:   avatarURL,
+        banner:   bannerURL,
         username: username,
-        bio: bio,
-        twitter: twitter,
-        instagram: instagram,
-        discord: discord,
-        wallet: wallet,
+        bio:      bio,
+        twitter:  twitter,
+        instagram:instagram,
+        discord:  discord,
+        wallet:   wallet,
       });
+      // Refresh profile
       const res = await axios.get(`${API}/api/profile/${authUser.email}`);
       setProfile(res.data);
       showToast("info", "Profile saved successfully!");
@@ -1290,81 +1382,50 @@ function App() {
         {/* LOADING */}
         {loading && <div className="loader-container"><div className="spinner"></div><p>Processing...</p></div>}
 
-        {/* MAIN VIEWS */}
+        {/* MARKET / DISCOVER */}
         {(view === "market" || view === "discover") && !selectedCollection && !publicProfileWallet && !loading && (
           <div className="animate">
-            {!blockchainOnline && (
-              <div className="offline-banner">
-                ⚠️ Blockchain Offline - Showing DB fallback
-              </div>
-            )}
-            <div className="grid">
-              {/* User Search */}
-              <div style={{ padding:"20px 20px 0" }}>
-                <UserSearchBar API={API} onSelectWallet={(w) => setPublicProfileWallet(w)} />
-              </div>
-              {/* Hero Slider */}
-              <div className="hero-slider">
-                <Swiper modules={[Navigation, Pagination, Autoplay]} spaceBetween={30} slidesPerView={1} navigation pagination={{ clickable: true }} autoplay={{ delay: 3500 }} loop>
-                  <SwiperSlide>
-                    <div className="hero-card">
-                      <img src="/ads/nft1.jpg" alt="" />
-                      <div className="hero-info">
-                        <h2>Cyberpunk Legends</h2>
-                        <p>Explore rare pixel heroes</p>
-                      </div>
-                    </div>
-                  </SwiperSlide>
-                  <SwiperSlide>
-                    <div className="hero-card">
-                      <img src="/ads/nft2.jpg" alt="" />
-                      <div className="hero-info">
-                        <h2>Metaverse Warriors</h2>
-                        <p>Limited drops available</p>
-                      </div>
-                    </div>
-                  </SwiperSlide>
-                </Swiper>
-              </div>
+            <div style={{ padding:"20px 20px 0" }}>
+              <UserSearchBar API={API} onSelectWallet={(w) => setPublicProfileWallet(w)} />
+            </div>
+            <div className="hero-slider">
+              <Swiper modules={[Navigation, Pagination, Autoplay]} spaceBetween={30} slidesPerView={1} navigation pagination={{ clickable: true }} autoplay={{ delay: 3500 }} loop>
+                <SwiperSlide><div className="hero-card"><img src="/ads/nft1.jpg" alt="" /><div className="hero-info"><h2>Cyberpunk Legends</h2><p>Explore rare pixel heroes</p></div></div></SwiperSlide>
+                <SwiperSlide><div className="hero-card"><img src="/ads/nft2.jpg" alt="" /><div className="hero-info"><h2>Metaverse Warriors</h2><p>Limited drops available</p></div></div></SwiperSlide>
+              </Swiper>
+            </div>
 
-              {/* Your NFTs */}
-              {authUser && savedNFTs.length > 0 && (
-                <div style={{ marginBottom:"40px" }}>
-                  {/* Your NFTs Header + Sorting */}
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px 14px", flexWrap:"wrap", gap:"10px" }}>
-                    <h2 style={{ color:"#00e5ff", margin:0, fontSize:"18px" }}>
-                      🖼️ Your NFTs
-                      <span style={{ marginLeft:"10px", fontSize:"13px", color:"#475569", fontWeight:"normal" }}>
-                        ({savedNFTs.filter(n => category==="All"||n.category===category).length})
-                      </span>
-                    </h2>
-                    {/* Sorting Buttons */}
-                    <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
-                      <span style={{ fontSize:"12px", color:"#64748b" }}>Sort:</span>
-                      {[
-                        ["default","Latest"],
-                        ["price_asc","Price ↑"],
-                        ["price_desc","Price ↓"],
-                        ["liked","❤️ Liked"]
-                      ].map(([val, label]) => (
-                        <button key={val} onClick={() => setSortBy(val)} style={{
-                          padding:"5px 12px", borderRadius:"20px", border:"none", cursor:"pointer",
-                          fontSize:"12px", fontWeight:"600", transition:"all 0.2s",
-                          background: sortBy===val ? "rgba(0,229,255,0.15)" : darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)",
-                          color: sortBy===val ? "#00e5ff" : "#94a3b8",
-                          outline: sortBy===val ? "1px solid rgba(0,229,255,0.3)" : "none"
-                        }}>{label}</button>
-                      ))}
-                    </div>
+            {authUser && savedNFTs.length > 0 && (
+              <div style={{ marginBottom:"40px" }}>
+                {/* YOUR NFTs HEADER + SORT BAR */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px 14px", flexWrap:"wrap", gap:"10px" }}>
+                  <h2 style={{ color:"#00e5ff", margin:0, fontSize:"18px" }}>
+                    🖼️ Your NFTs
+                    <span style={{ marginLeft:"10px", fontSize:"13px", color:"#475569", fontWeight:"normal" }}>
+                      ({savedNFTs.filter(n => category==="All"||n.category===category).length})
+                    </span>
+                  </h2>
+                  <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                    <span style={{ fontSize:"12px", color:"#64748b" }}>Sort:</span>
+                    {[["default","Latest"],["price_asc","Price ↑"],["price_desc","Price ↓"],["liked","❤️ Liked"]].map(([val, label]) => (
+                      <button key={val} onClick={() => setSortBy(val)} style={{
+                        padding:"5px 12px", borderRadius:"20px", border:"none", cursor:"pointer",
+                        fontSize:"12px", fontWeight:"600", transition:"all 0.2s",
+                        background: sortBy===val ? "rgba(0,229,255,0.15)" : darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)",
+                        color: sortBy===val ? "#00e5ff" : "#94a3b8",
+                        outline: sortBy===val ? "1px solid rgba(0,229,255,0.3)" : "none"
+                      }}>{label}</button>
+                    ))}
                   </div>
-                  {/* NFT Grid */}
-                  <div style={{ height:"1px", background:"rgba(0,229,255,0.15)", margin:"0 20px 16px" }} />
+                </div>
+                <div style={{ height:"1px", background:"rgba(0,229,255,0.15)", margin:"0 20px 16px" }} />
+                <div className="grid">
                   {(() => {
                     const filtered = savedNFTs
                       .filter(n => (category==="All"||n.category===category) && n.name.toLowerCase().includes(searchQuery))
-                      .filter(n => sortBy==="liked" ? getLikeCount(n.tokenId) : true)
+                      .filter(n => sortBy==="liked" ? likes[String(n.tokenId)] : true)
                       .sort((a,b) => {
-                        if (sortBy==="price_asc") return parseFloat(a.price||0) - parseFloat(b.price||0);
+                        if (sortBy==="price_asc")  return parseFloat(a.price||0) - parseFloat(b.price||0);
                         if (sortBy==="price_desc") return parseFloat(b.price||0) - parseFloat(a.price||0);
                         return 0;
                       });
@@ -1377,64 +1438,141 @@ function App() {
                       </div>
                     );
                     return filtered.map((nft, i) => {
-                      const isLikedSaved = getLikeCount(nft.tokenId);
-                      const priceDisplay = nft.fromDB ? parseFloat(nft.price||0).toFixed(4) : (() => { try { return ethers.formatEther(nft.price); } catch { return nft.price||"0"; } })();
-                      const isOwner = wallet && nft.seller && wallet.toLowerCase() === nft.seller.toLowerCase();
+                      const isLikedSaved = !!likes[String(nft.tokenId)];
                       return (
                         <div key={i} className="nft-card" style={{
                           background: darkMode ? "var(--bg-card)" : "#ffffff",
                           border: darkMode ? "1px solid rgba(0,246,255,0.3)" : "1px solid #bae6fd",
                           position:"relative"
                         }}>
-                          {/* Like Button */}
-                          <button onClick={() => toggleLike(nft.tokenId)} title={isLikedSaved ? "Remove from favorites" : "Add to favorites"} style={{
-                            position:"absolute", top:"10px", right:"10px", zIndex:2,
-                            background: isLikedSaved ? "rgba(239,68,68,0.9)" : "rgba(0,0,0,0.5)",
-                            border:"none", borderRadius:"50%", width:"32px", height:"32px", cursor:"pointer",
-                            display:"flex", alignItems:"center", justifyContent:"center",
-                            fontSize:"14px", transition:"all 0.2s",
-                            backdropFilter:"blur(4px)"
-                          }}>{isLikedSaved ? "❤️" : "🤍"}</button>
-                          {/* NFT Image */}
-                          <img src={nft.image} alt="" onClick={() => setSelectedCollection(nft)} style={{ cursor:"pointer" }} />
+                          <button onClick={() => toggleLike(nft.tokenId)} style={{ position:"absolute", top:"10px", right:"10px", zIndex:2, background: isLikedSaved ? "rgba(239,68,68,0.9)" : "rgba(0,0,0,0.5)", border:"none", borderRadius:"50%", width:"32px", height:"32px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"14px", backdropFilter:"blur(4px)" }}>
+                            {isLikedSaved ? "❤️" : "🤍"}
+                          </button>
+                          <img src={nft.image} alt={nft.name} onClick={() => setSelectedCollection(nft)} style={{ cursor:"pointer" }} />
                           <h3 style={{ color: darkMode ? "#e8edf5" : "#1a1f2e" }}>{nft.name}</h3>
-                          <p style={{ color:"#00f6ff" }}>{priceDisplay} ETH</p>
-                          {/* Connect Wallet Button for non-wallet NFTs */}
-                          {!wallet && !nft.fromDB && (
-                            <button onClick={connectWallet} style={{ background:"linear-gradient(135deg,#7B61FF,#00f6ff)" }}>🔗 Connect Wallet</button>
-                          )}
-                          {/* From DB (Hardhat) non-buyable */}
-                          {nft.fromDB ? (
-                            <button disabled style={{ opacity:0.4, cursor:"not-allowed", fontSize:"12px" }}>🔌 Start Hardhat to Trade</button>
-                          ) : (
-                            <>
-                              {/* Owner Remove NFT */}
-                              {wallet && isOwner && (
-                                <button className="btn-danger" onClick={() => unlistNFT(nft.tokenId)}>🗑 Remove Listing</button>
-                              )}
-                              {/* Buy Button */}
-                              {wallet && !isOwner && (
-                                <button onClick={() => buyNFT(nft.tokenId, nft.price)} style={{ background:"linear-gradient(135deg,#00e5ff,#38bdf8)", color:"#04050a", fontWeight:"800" }}>🛒 Buy — {priceDisplay} ETH</button>
-                              )}
-                            </>
-                          )}
-                          {/* Seller info */}
-                          {nft.seller && (
-                            <p onClick={() => setPublicProfileWallet(nft.seller)} style={{ margin:"6px 0 0", fontFamily:"monospace", fontSize:"0.7rem", color:"#475569", cursor:"pointer" }} title="View seller profile">
-                              👤 {nft.seller.slice(0,6)}...{nft.seller.slice(-4)}
-                            </p>
-                          )}
+                          <p style={{ color:"#00f6ff" }}>{nft.price} ETH</p>
+                          <span>{nft.category}</span>
+                          {nft.seller && <p onClick={() => setPublicProfileWallet(nft.seller)} className="nft-wallet-line" title="View creator profile">👤 {nft.seller.slice(0,6)}...{nft.seller.slice(-4)}</p>}
+                          <button className="btn-danger" onClick={() => deleteNFT(nft.tokenId)}>🗑 Remove</button>
                         </div>
                       );
                     });
                   })()}
                 </div>
-              })()}
+              </div>
+            )}
+
+            {/* MARKETPLACE SECTION */}
+            {!blockchainOnline && (
+              <div style={{ margin:"0 20px 16px", padding:"12px 18px", background:"rgba(240,180,41,0.08)", border:"1px solid rgba(240,180,41,0.25)", borderRadius:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
+                <span style={{ fontSize:"18px" }}>⚠️</span>
+                <div>
+                  <p style={{ margin:0, fontWeight:"700", color:"#f0b429", fontSize:"13px" }}>Blockchain Offline</p>
+                  <p style={{ margin:"2px 0 0", color:"#8892a4", fontSize:"12px" }}>Hardhat is not running. Showing NFTs from database. Start Hardhat to enable buying/selling.</p>
+                </div>
+                <button
+                  onClick={loadAllNFTs}
+                  style={{ marginLeft:"auto", padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,180,41,0.4)", background:"transparent", color:"#f0b429", fontWeight:"700", fontSize:"12px", cursor:"pointer", whiteSpace:"nowrap" }}
+                >
+                  🔄 Retry
+                </button>
+              </div>
+            )}
+            <div style={{ padding:"0 20px 14px", display:"flex", alignItems:"center" }}>
+              <h2 style={{ color:"#94a3b8", margin:0, fontSize:"18px" }}>
+                🛒 Marketplace
+                <span style={{ marginLeft:"10px", fontSize:"13px", color:"#475569", fontWeight:"normal" }}>
+                  ({marketNFTs.filter(n => category==="All"||n.category===category).length} NFTs)
+                </span>
+              </h2>
             </div>
+            <div style={{ height:"1px", background:"rgba(148,163,184,0.15)", margin:"0 20px 16px" }} />
+            {(() => {
+              const filtered = [...marketNFTs]
+                .filter(n => (category==="All"||n.category===category) && n.name.toLowerCase().includes(searchQuery));
+              if (filtered.length === 0) return (
+                <div style={{ textAlign:"center", padding:"80px 20px", color:"#4a5568" }}>
+                  <p style={{ fontSize:"4rem" }}>🏪</p>
+                  <p style={{ marginTop:"16px", fontSize:"16px", color:"#8892a4", fontWeight:"600" }}>
+                    {marketNFTs.length === 0 ? "Marketplace is empty" : "No NFTs match your filter"}
+                  </p>
+                  <p style={{ marginTop:"8px", fontSize:"13px", color:"#4a5568" }}>
+                    {marketNFTs.length === 0 ? "Be the first to mint an NFT!" : "Try a different category or search term."}
+                  </p>
+                  {marketNFTs.length === 0 && authUser && (
+                    <button onClick={()=>setView("create")} style={{ marginTop:"20px", padding:"11px 28px", borderRadius:"12px", border:"none", background:"linear-gradient(135deg,#00e5ff,#38bdf8)", color:"#04050a", fontWeight:"800", cursor:"pointer", fontSize:"14px" }}>Mint First NFT</button>
+                  )}
+                </div>
+              );
+              return (
+              <div className="grid">
+                {filtered.map((nft, i) => {
+                const isOwner = wallet && nft.seller && wallet.toLowerCase() === nft.seller.toLowerCase();
+                const priceEth = nft.fromDB ? parseFloat(nft.price||0).toFixed(4) : (() => { try { return ethers.formatEther(nft.price); } catch { return nft.price||"0"; } })();
+                const isLiked = !!likes[String(nft.tokenId)];
+                return (
+                  <div key={i} className="nft-card" style={{
+                    background: darkMode ? "var(--bg-card)" : "#ffffff",
+                    border: darkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid #e2e8f0",
+                    position:"relative"
+                  }}>
+                    {/* LIKE BUTTON */}
+                    <button
+                      onClick={() => toggleLike(nft.tokenId)}
+                      title={isLiked ? "Remove from favorites" : "Add to favorites"}
+                      style={{
+                        position:"absolute", top:"10px", right:"10px", zIndex:2,
+                        background: isLiked ? "rgba(239,68,68,0.9)" : "rgba(0,0,0,0.5)",
+                        border:"none", borderRadius:"50%",
+                        width:"32px", height:"32px", cursor:"pointer",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize:"14px", transition:"all 0.2s",
+                        backdropFilter:"blur(4px)"
+                      }}
+                    >
+                      {isLiked ? "❤️" : "🤍"}
+                    </button>
+                    <img src={nft.image} alt="" onClick={() => setSelectedCollection(nft)} style={{ cursor:"pointer" }} />
+                    <h3 style={{ color: darkMode ? "#e8edf5" : "#1a1f2e" }}>{nft.name}</h3>
+                    <p style={{ color:"#00f6ff" }}>{priceEth} ETH</p>
+                    {!wallet && !nft.fromDB && (
+                      <button onClick={connectWallet} style={{ background:"linear-gradient(135deg,#7B61FF,#00f6ff)" }}>
+                        🔗 Connect Wallet
+                      </button>
+                    )}
+                    {nft.fromDB ? (
+                      <button disabled style={{ opacity:0.4, cursor:"not-allowed", fontSize:"12px" }}>
+                        🔌 Start Hardhat to Trade
+                      </button>
+                    ) : (
+                      <>
+                        {wallet && isOwner && (
+                          <button className="btn-danger" onClick={() => unlistNFT(nft.tokenId)}>
+                            🗑 Remove Listing
+                          </button>
+                        )}
+                        {wallet && !isOwner && (
+                          <button onClick={() => buyNFT(nft.tokenId, nft.price)} style={{ background:"linear-gradient(135deg,#00e5ff,#38bdf8)", color:"#04050a", fontWeight:"800" }}>
+                            🛒 Buy — {priceEth} ETH
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {nft.seller && (
+                      <p onClick={() => setPublicProfileWallet(nft.seller)} style={{ margin:"6px 0 0", fontFamily:"monospace", fontSize:"0.7rem", color:"#475569", cursor:"pointer" }} title="View seller profile">
+                        👤 {nft.seller.slice(0,6)}...{nft.seller.slice(-4)}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+              </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* Tokens Dashboard */}
+        {/* ── TOKENS ── */}
         {view === "tokens" && (
           <div className="page-section animate">
             <h2>🪙 Tokens Dashboard</h2>
@@ -1459,7 +1597,6 @@ function App() {
                     </div>
                   ))}
                 </div>
-                {/* NFT Staking */}
                 <div className="staking-box" style={{ marginTop:"24px" }}>
                   <h3 style={{ marginBottom:"8px" }}>🔒 NFT Staking</h3>
                   <p style={{ color:"#8892a4", fontSize:"13.5px", marginBottom:"16px" }}>Select an NFT to stake and earn 10 $GAME per day.</p>
@@ -1479,7 +1616,6 @@ function App() {
                       ))}
                     </div>
                   )}
-                  {/* Stake & Claim Buttons */}
                   <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
                     <button onClick={()=>showAlert("NFT Staking launches on Sepolia soon!","info","Coming Soon","🔒")} style={{ padding:"10px 20px", borderRadius:"10px", border:"none", background:"linear-gradient(135deg,#8b5cf6,#00e5ff)", color:"#fff", fontWeight:"700", cursor:"pointer", fontSize:"13px" }}>⚡ Stake NFT</button>
                     <button onClick={()=>showAlert("No rewards yet. Stake an NFT to start earning.","info","No Rewards","🎁")} style={{ padding:"10px 20px", borderRadius:"10px", border:"1px solid rgba(0,229,255,0.3)", background:"rgba(0,229,255,0.08)", color:"#00e5ff", fontWeight:"700", cursor:"pointer", fontSize:"13px" }}>🎁 Claim Rewards</button>
@@ -1490,7 +1626,7 @@ function App() {
           </div>
         )}
 
-        {/* Swap */}
+        {/* ── SWAP ── */}
         {view === "swap" && (
           <div className="page-section animate">
             <h2>🔄 Swap Tokens</h2>
@@ -1500,7 +1636,7 @@ function App() {
               <input
                 placeholder="0.00" type="number" min="0" step="0.001"
                 value={swapAmount}
-                onChange={(e) => setSwapAmount(e.target.value)}
+                onChange={e => setSwapAmount(e.target.value)}
                 style={{ marginBottom:"8px", fontSize:"22px", fontFamily:"'JetBrains Mono',monospace", fontWeight:"600" }}
               />
               <div style={{ textAlign:"center", fontSize:"22px", margin:"8px 0", color:"#00e5ff", cursor:"pointer" }} onClick={()=>setSwapAmount("")}>⇅</div>
@@ -1525,27 +1661,24 @@ function App() {
           </div>
         )}
 
-        {/* Drops */}
+        {/* ── DROPS ── */}
         {view === "drops" && (
           <DropView onAlert={showAlert} />
         )}
 
-        {/* Activity */}
+        {/* ── ACTIVITY ── */}
         {view === "activity" && (
           <ActivityView marketNFTs={marketNFTs} savedNFTs={savedNFTs} wallet={wallet} onSelectNFT={setSelectedCollection} />
         )}
 
-        {/* Rewards Lootbox */}
-        {view === "rewards" && (
-          <LootboxView wallet={wallet} authUser={authUser} mintNFTFromLoot={mintNFTFromLoot} />
-        )}
+        {view === "rewards" && <LootboxView wallet={wallet} authUser={authUser} mintNFTFromLoot={mintNFTFromLoot} />}
 
-        {/* Creator Studio */}
+        {/* ── STUDIO ── */}
         {view === "studio" && (
           <StudioView authUser={authUser} wallet={wallet} onAlert={showAlert} onMint={() => setView("create")} />
         )}
 
-        {/* Collections */}
+        {/* ── COLLECTIONS ── */}
         {view === "collections" && !loading && (
           <div className="page-section animate">
             <h2>📦 Top Collections</h2>
@@ -1585,13 +1718,12 @@ function App() {
           </div>
         )}
 
-        {/* Resources */}
+        {/* ── RESOURCES ── */}
         {view === "resources" && (
           <div className="page-section animate">
             <h2>📚 Resources</h2>
             <p style={{ color:"#94a3b8", fontSize:"14px", marginBottom:"32px" }}>Everything you need to get started with NFTs and blockchain.</p>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:"16px" }}>
-              {/* Resource Cards */}
               {[
                 { icon:"📖", title:"What is an NFT?", desc:"Learn the basics of Non-Fungible Tokens, how they work and why they have value.", link:"https://ethereum.org/en/nft/" },
                 { icon:"🦊", title:"MetaMask Guide", desc:"How to set up MetaMask, add networks, and connect to dApps safely.", link:"https://metamask.io/learn/" },
@@ -1611,16 +1743,16 @@ function App() {
           </div>
         )}
 
-        {/* HELP CENTER */}
+        {/* ── HELP CENTER ── */}
         {view === "help" && (
           <HelpView />
         )}
 
-        {/* Create NFT */}
         {view === "create" && !loading && (
           <div className="card animate" style={{ maxWidth:"600px" }}>
             <h2>🎨 Mint NFT</h2>
-            {/* Image Upload */}
+
+            {/* IMAGE UPLOAD + PREVIEW */}
             <div
               onClick={() => document.getElementById("nft-file-input").click()}
               style={{
@@ -1665,7 +1797,7 @@ function App() {
               }}
             />
 
-            {/* NFT Name */}
+            {/* NAME */}
             <div style={{ position:"relative", marginBottom:"2px" }}>
               <input
                 value={nftName}
@@ -1677,7 +1809,7 @@ function App() {
               <span style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"11px", color: nftName.length > 50 ? "#f0b429" : "#4a5568", fontFamily:"monospace" }}>{nftName.length}/60</span>
             </div>
 
-            {/* Description */}
+            {/* DESCRIPTION */}
             <div style={{ position:"relative", marginBottom:"2px" }}>
               <textarea
                 value={description}
@@ -1689,7 +1821,7 @@ function App() {
               <span style={{ position:"absolute", right:"12px", top:"12px", fontSize:"11px", color: description.length > 250 ? "#f0b429" : "#4a5568", fontFamily:"monospace" }}>{description.length}/300</span>
             </div>
 
-            {/* Category + Price */}
+            {/* CATEGORY + PRICE ROW */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px", marginTop:"2px" }}>
               <select value={nftCategory} onChange={(e) => setNftCategory(e.target.value)} style={{ margin:0 }}>
                 <option value="Gaming">🎮 Gaming</option>
@@ -1713,7 +1845,7 @@ function App() {
               </div>
             </div>
 
-            {/* Listing fee info */}
+            {/* LISTING FEE INFO */}
             <div style={{ display:"flex", alignItems:"center", gap:"8px", padding:"10px 14px", background:"rgba(240,180,41,0.07)", border:"1px solid rgba(240,180,41,0.2)", borderRadius:"10px", marginTop:"14px", marginBottom:"4px" }}>
               <span style={{ fontSize:"14px" }}>ℹ️</span>
               <p style={{ margin:0, fontSize:"12px", color:"#f0b429" }}>A listing fee of <strong>0.01 ETH</strong> is charged by the smart contract on mint.</p>
@@ -1725,7 +1857,6 @@ function App() {
           </div>
         )}
 
-        {/* Profile */}
         {view === "profile" && !loading && (
           <div className="profile-page animate">
             {!authUser ? (
@@ -1733,10 +1864,11 @@ function App() {
                 <p style={{ fontSize:"4rem" }}>👤</p>
                 <h2 style={{ color:"#e2e8f0", marginTop:"16px" }}>Not logged in</h2>
                 <p style={{ marginTop:"8px", fontSize:"14px" }}>Login to view your profile and assets.</p>
+                <button onClick={() => setView("login")} style={{ marginTop:"20px", padding:"11px 32px", borderRadius:"12px", border:"none", background:"linear-gradient(135deg,#7B61FF,#00f6ff)", color:"#fff", fontWeight:"700", cursor:"pointer" }}>Login</button>
               </div>
             ) : (
               <>
-                {/* Banner & Avatar */}
+                {/* BANNER & AVATAR */}
                 <div style={{ position:"relative" }}>
                   {profile?.banner
                     ? <img src={profile.banner} className="profile-banner" alt="banner" />
@@ -1748,19 +1880,19 @@ function App() {
                   : <div style={{ width:"90px", height:"90px", borderRadius:"50%", background:"linear-gradient(135deg,#7B61FF,#00f6ff)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"2.2rem", marginTop:"-45px", marginLeft:"32px", border:"4px solid #06080f", position:"relative", zIndex:2 }}>👤</div>
                 }
 
-                {/* Name + Wallet */}
+                {/* NAME + WALLET */}
                 <div style={{ padding:"12px 32px 0" }}>
                   <h2 style={{ fontSize:"22px", fontWeight:"700", margin:"0 0 4px", color:"#f1f5f9" }}>{profile?.username || authUser.name || "Anonymous"}</h2>
                   {wallet && <p style={{ fontFamily:"monospace", fontSize:"12px", color:"#64748b", margin:"0 0 6px" }}>{wallet.slice(0,10)}...{wallet.slice(-6)}</p>}
                   {profile?.bio && <p style={{ color:"#94a3b8", fontSize:"13px", margin:"0 0 10px", lineHeight:1.6 }}>{profile.bio}</p>}
-                  <div style={{ display:"flex", gap:"12px", flexWrap:"wrap" }}>
+                  <div style={{ display:"flex", gap:"12px", marginBottom:"20px", flexWrap:"wrap" }}>
                     {profile?.twitter && <a href={`https://twitter.com/${profile.twitter.replace("@","")}`} target="_blank" rel="noreferrer" style={{ color:"#1d9bf0", fontSize:"13px", textDecoration:"none" }}>🐦 {profile.twitter}</a>}
                     {profile?.instagram && <a href={`https://instagram.com/${profile.instagram.replace("@","")}`} target="_blank" rel="noreferrer" style={{ color:"#e1306c", fontSize:"13px", textDecoration:"none" }}>📸 {profile.instagram}</a>}
                     {profile?.discord && <span style={{ color:"#7289da", fontSize:"13px" }}>💬 {profile.discord}</span>}
                   </div>
                 </div>
 
-                {/* Stats Row */}
+                {/* STATS ROW */}
                 <div style={{ display:"flex", gap:"12px", padding:"0 32px 24px", flexWrap:"wrap" }}>
                   {[
                     ["NFTs Owned", savedNFTs.length, "#00f6ff"],
@@ -1769,14 +1901,14 @@ function App() {
                     ["Favorites", Object.values(likes).filter(Boolean).length, "#ef4444"],
                   ].map(([label, val, color]) => (
                     <div key={label} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:"12px", padding:"14px 22px", flex:1, minWidth:"110px", textAlign:"center" }}>
-                      <p style={{ margin:"0 0 4px", color:"#64748b", fontSize:"11px", textTransform:"uppercase" }}>{label}</p>
+                      <p style={{ margin:"0 0 4px", color:"#64748b", fontSize:"11px", textTransform:"uppercase", letterSpacing:"0.08em" }}>{label}</p>
                       <p style={{ margin:0, color, fontSize:"20px", fontWeight:"700", fontFamily:"monospace" }}>{val}</p>
                     </div>
                   ))}
                 </div>
 
-                {/* Assets */}
                 <h3 style={{ margin:"0 32px 16px", fontSize:"12px", fontWeight:"700", color:"#64748b", textTransform:"uppercase", letterSpacing:"0.1em", borderLeft:"3px solid #00f6ff", paddingLeft:"10px" }}>Your Assets</h3>
+
                 {!wallet ? (
                   <div style={{ padding:"0 32px" }}>
                     <p style={{ color:"#64748b", marginBottom:"14px" }}>Connect your wallet to see your on-chain NFTs.</p>
@@ -1805,7 +1937,6 @@ function App() {
           </div>
         )}
 
-        {/* Settings/Profile */}
         {view === "settings" && (
           <div className="page-section animate">
             <h2>⚙️ Profile Settings</h2>
@@ -1816,37 +1947,140 @@ function App() {
               </div>
             ) : (
             <div className="profile-settings">
-              {/* Profile Preview */}
+              {/* PREVIEW */}
               {(profile?.avatar || profile?.banner) && (
                 <div style={{ marginBottom:"24px", borderRadius:"16px", overflow:"hidden", border:"1px solid rgba(255,255,255,0.07)" }}>
-                  {profile.banner && <img src={profile.banner} alt="banner" className="profile-banner" />}
-                  {profile?.avatar && <img src={profile.avatar} alt="avatar" className="profile-avatar" />}
-                  {!profile?.avatar && !profile?.banner && (
-                    <div style={{ width:"100%", height:"120px", background:"linear-gradient(135deg,#1e1b4b,#0f172a,#1e293b)" }} />
-                  )}
+                  {profile.banner && <img src={profile.banner} alt="banner" style={{ width:"100%", height:"120px", objectFit:"cover", display:"block" }} />}
+                  <div style={{ padding:"12px 16px", display:"flex", alignItems:"center", gap:"12px" }}>
+                    {profile.avatar && <img src={profile.avatar} alt="avatar" style={{ width:"52px", height:"52px", borderRadius:"50%", objectFit:"cover", border:"3px solid rgba(0,246,255,0.3)" }} />}
+                    <div>
+                      <p style={{ margin:0, fontWeight:"700", color:"#e2e8f0" }}>{profile.username || "No username yet"}</p>
+                      <p style={{ margin:"2px 0 0", fontSize:"12px", color:"#64748b" }}>{profile.bio || "No bio yet"}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Uploads */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"16px" }}>
                 <div className="banner-upload"><label>📷 Upload Banner</label><input type="file" accept="image/*" onChange={(e) => setBannerFile(e.target.files[0])} /></div>
                 <div className="avatar-upload"><label>🖼️ Upload Avatar</label><input type="file" accept="image/*" onChange={(e) => setAvatarFile(e.target.files[0])} /></div>
               </div>
 
-              {/* Profile Info */}
               <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:"6px" }}>Username</label>
-              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Your display name" style={{ marginBottom:"14px" }} />
+              <input value={username} onChange={e => setUsername(e.target.value)} placeholder="Your display name" style={{ marginBottom:"14px" }} />
 
               <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:"6px" }}>Bio</label>
-              <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell the world about yourself..." style={{ height:"90px", resize:"vertical", marginBottom:"14px", width:"100%", padding:"12px", borderRadius:"10px", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#e2e8f0", fontFamily:"inherit", outline:"none" }}></textarea>
+              <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Tell the world about yourself..." style={{ height:"90px", resize:"vertical", marginBottom:"14px", width:"100%", padding:"12px", borderRadius:"10px", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#e2e8f0", fontFamily:"inherit", outline:"none" }}></textarea>
 
-              {/* Social Links */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px", marginBottom:"14px" }}>
                 <div>
                   <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:"6px" }}>🐦 Twitter</label>
-                  <input value={twitter} onChange={(e) => setTwitter(e.target.value)} placeholder="@username" />
+                  <input value={twitter} onChange={e => setTwitter(e.target.value)} placeholder="@username" />
                 </div>
                 <div>
                   <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:"6px" }}>📸 Instagram</label>
-                  <input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="@username" />
-                </
+                  <input value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="@username" />
+                </div>
+              </div>
+
+              <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:"6px" }}>💬 Discord</label>
+              <input value={discord} onChange={e => setDiscord(e.target.value)} placeholder="username#0000" style={{ marginBottom:"14px" }} />
+
+              <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:"6px" }}>🔗 Wallet Address</label>
+              <input value={wallet || "Not connected"} readOnly style={{ marginBottom:"20px", opacity:0.6, cursor:"default" }} />
+
+              <button onClick={saveProfile} style={{ width:"100%", padding:"13px", borderRadius:"12px", border:"none", background:"linear-gradient(135deg,#00f6ff,#7B61FF)", color:"#fff", fontWeight:"700", fontSize:"15px", cursor:"pointer" }}>
+                💾 Save Profile
+              </button>
+
+              <div style={{ marginTop:"32px", borderTop:"1px solid rgba(239,68,68,0.2)", paddingTop:"24px" }}>
+                <h3 style={{ color:"#ef4444", marginBottom:"8px", fontSize:"15px" }}>⚠️ Danger Zone</h3>
+                <p style={{ color:"#94a3b8", fontSize:"13px", marginBottom:"14px" }}>Permanently delete all your saved NFTs. Cannot be undone.</p>
+                <button
+                  onClick={() => {
+                    if (!authUser) return showAlert("Please login first.", "warning", "Login Required", "🔐");
+                    showConfirm(
+                      "This will permanently delete ALL your saved NFTs from the database. This cannot be undone.",
+                      async () => {
+                        try { const res = await axios.delete(`${API}/api/nfts/clear/${authUser.email}`); setSavedNFTs([]); showToast("info", res.data.message); }
+                        catch(e) { showAlert(e.response?.data?.error || e.message, "error", "Error"); }
+                      },
+                      "Delete All NFTs", "Delete All", "error"
+                    );
+                  }}
+                  style={{ background:"rgba(239,68,68,0.1)", color:"#ef4444", border:"1px solid rgba(239,68,68,0.3)", padding:"10px 24px", borderRadius:"8px", cursor:"pointer", fontWeight:"700", fontSize:"13px" }}
+                >
+                  🗑️ Clear All My NFTs
+                </button>
+              </div>
+            </div>
+            )}
+          </div>
+        )}
+
+        {publicProfileWallet && !loading && <PublicProfileView wallet={publicProfileWallet} onBack={() => setPublicProfileWallet(null)} API={API} currentWallet={wallet} />}
+        {selectedCollection && !loading && <NFTDetailView nft={selectedCollection} wallet={wallet} authUser={authUser} onBack={() => setSelectedCollection(null)} onBuy={buyNFT} onUnlist={unlistNFT} API={API} />}
+
+        {view === "login" && (
+          <div className="auth-modal"><div className="auth-box">
+            <h2>Login</h2>
+            <input
+              placeholder="Email"
+              value={email}
+              autoComplete="email"
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && login()}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              autoComplete="current-password"
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && login()}
+            />
+            <button onClick={login}>Enter App</button>
+            <button className="close-btn" onClick={() => setView("market")}>Cancel</button>
+          </div></div>
+        )}
+
+        {view === "register" && (
+          <div className="page-section animate">
+            <h2>📝 Create Account</h2>
+            <div className="activity-box" style={{ maxWidth:"460px" }}>
+              <div className="form-group">
+                <label>Username</label>
+                <input type="text" placeholder="Your display name" autoComplete="username" onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Email</label>
+                <input type="email" placeholder="your@email.com" autoComplete="email" onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key==="Enter" && register()} />
+              </div>
+              <div className="form-group">
+                <label>Password</label>
+                <input type="password" placeholder="Min 6 characters" autoComplete="new-password" onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key==="Enter" && register()} />
+              </div>
+              <button className="connect-btn-large" style={{ marginTop:"20px", background:"linear-gradient(135deg,#00e5ff,#38bdf8)", color:"#04050a" }} onClick={register}>
+                Create Account
+              </button>
+              <p style={{ marginTop:"16px", textAlign:"center", color:"#4a5568", fontSize:"13px" }}>
+                Already have an account?{" "}
+                <span onClick={() => setView("login")} style={{ color:"#00e5ff", cursor:"pointer", fontWeight:"600" }}>Sign In</span>
+              </p>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+
+    <Toast toasts={toasts} removeToast={removeToast} />
+    <Modal modal={modal} onClose={() => setModal(null)} onConfirm={modal?.onConfirm} />
+    <style>{`
+      @keyframes slideIn { from{opacity:0;transform:translateX(60px)} to{opacity:1;transform:translateX(0)} }
+    `}</style>
+    </>
+  );
+}
+
+export default App;
