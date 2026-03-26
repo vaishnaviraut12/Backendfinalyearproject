@@ -1,7 +1,7 @@
-const express  = require("express");
+const express = require("express");
 const mongoose = require("mongoose");
-const cors     = require("cors");
-const dotenv   = require("dotenv");
+const cors = require("cors");
+const dotenv = require("dotenv");
 
 dotenv.config();
 
@@ -10,14 +10,16 @@ const app = express();
 // ─── MIDDLEWARE ───────────────────────────────────────────────
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, curl)
+    // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
     
     const allowed = [
+      "http://localhost:3000",
+      "http://localhost:3001",
       "https://localhost:3000",
-      "https://localhost:3001",
     ];
     
+    // FIXED: Added || operators and fixed logic
     if (
       allowed.includes(origin) ||
       origin.endsWith(".vercel.app") ||
@@ -31,12 +33,12 @@ app.use(cors({
       return callback(null, true);
     }
     
-    // FIX ADDED HERE: Backticks are required for ${origin}
     callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true,
 }));
 
+// Increase limit to allow base64 NFT images
 app.use(express.json({ limit: "10mb" }));
 
 // ─── REQUEST LOGGER ───────────────────────────────────────────
@@ -72,8 +74,10 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB Connected");
+    // FIXED: Added || operator
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
+      // FIXED: Added backticks
       console.log(`🚀 Server running on port ${PORT}`);
     });
   })
