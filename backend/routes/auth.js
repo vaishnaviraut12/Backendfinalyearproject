@@ -6,27 +6,27 @@ const jwt = require("jsonwebtoken");
 // Register
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, username, email, password } = req.body;
+    
+    // Accept either 'name' or 'username'
+    const userName = name || username || email.split('@')[0];
     
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password required" });
     }
     
-    // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ error: "User already exists" });
     }
     
-    // Create user - password will be hashed by pre-save hook
     const user = new User({ 
-      name: name || email.split('@')[0],
+      name: userName,
       email: email.toLowerCase(), 
-      password: password  // Will be hashed automatically
+      password: password
     });
     await user.save();
     
-    // Generate JWT
     const token = jwt.sign(
       { userId: user._id, email: user.email, name: user.name },
       process.env.JWT_SECRET,
@@ -46,7 +46,6 @@ router.post("/register", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // Login
 router.post("/login", async (req, res) => {
   try {
