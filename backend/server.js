@@ -8,34 +8,10 @@ dotenv.config();
 const app = express();
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────
+// Replace the current app.use(cors(...)) with this:
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-    
-    const allowed = [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "https://localhost:3000",
-    ];
-    
-    // FIXED: Added || operators and fixed logic
-    if (
-      allowed.includes(origin) ||
-      origin.endsWith(".vercel.app") ||
-      origin.endsWith(".netlify.app") ||
-      origin.endsWith(".railway.app")
-    ) {
-      return callback(null, true);
-    }
-    
-    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
-      return callback(null, true);
-    }
-    
-    callback(new Error(`CORS blocked: ${origin}`));
-  },
-  credentials: true,
+  origin: true, // This allows ALL origins (Vercel, Localhost, etc.)
+  credentials: true
 }));
 
 // Increase limit to allow base64 NFT images
