@@ -10,7 +10,36 @@ import marketplace from "./Marketplace.json";
 import "./App.css";
 import Sidebar from "./components/Sidebar";
 
+// 1. Define your API at the very top (outside the component)
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+// 2. Inside your App component, update your connection logic:
+const loadBlockchainData = async () => {
+  try {
+    // Check if MetaMask is installed
+    if (window.ethereum) {
+      // ✅ Use MetaMask as the provider
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+      
+      // Initialize your contract with the signer
+      // const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+      
+      console.log("Connected to MetaMask:", userAddress);
+    } else {
+      // ❌ Fallback if no MetaMask is found
+      console.log("MetaMask not found. Please install it.");
+      
+      // ONLY use localhost if you are actually working on your computer
+      if (window.location.hostname === "localhost") {
+        const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+      }
+    }
+  } catch (error) {
+    console.error("Connection error:", error);
+  }
+};
 const PINATA_JWT = process.env.REACT_APP_PINATA_JWT;
 /* ================= TOAST ================= */
 const Toast = ({ toasts, removeToast }) => (
@@ -1072,30 +1101,43 @@ function App() {
     setLoading(true);
     let blockchainWorking = false;
 
-    // ── Try blockchain with 3s timeout ──────────────────────────────
     try {
-      const readProvider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-      const readContract  = new ethers.Contract(marketplace.address, marketplace.abi, readProvider);
-      const timeout       = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 3000));
-      const listed        = await Promise.race([readContract.getAllNFTs(), timeout]);
-      const resolved      = await resolveNFTs(listed, readContract);
-      setMarketNFTs(resolved);
-      setBlockchainOnline(true);
-      blockchainWorking = true;
-
-      // Load caller's own NFTs if wallet is connected
-      if (contract && wallet) {
-        try {
-          const mine       = await contract.getMyNFTs();
-          const myResolved = await resolveNFTs(mine, contract);
-          setMintedNFTs(myResolved.filter(n => n.seller?.toLowerCase() === wallet.toLowerCase()));
-          setPurchasedNFTs(myResolved.filter(n =>
-            n.owner?.toLowerCase() === wallet.toLowerCase() &&
-            n.seller?.toLowerCase() !== wallet.toLowerCase()
-          ));
-        } catch(_) {}
+      let readProvider;
+      
+      // ✅ FIX: Use MetaMask if available, otherwise check if we are local
+      if (window.ethereum) {
+        readProvider = new ethers.BrowserProvider(window.ethereum);
+      } else if (window.location.hostname === "localhost") {
+        readProvider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
       }
-    } catch(chainErr) {
+
+      if (readProvider) {
+        const readContract = new ethers.Contract(marketplace.address, marketplace.abi, readProvider);
+        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 3000));
+        
+        // Use getAllNFTs from the contract
+        const listed = await Promise.race([readContract.getAllNFTs(), timeout]);
+        const resolved = await resolveNFTs(listed, readContract);
+        
+        setMarketNFTs(resolved);
+        setBlockchainOnline(true);
+        blockchainWorking = true;
+
+        // Load personal NFTs if wallet connected
+        if (contract && wallet) {
+          try {
+            const mine = await contract.getMyNFTs();
+            const myResolved = await resolveNFTs(mine, contract);
+            setMintedNFTs(myResolved.filter(n => n.seller?.toLowerCase() === wallet.toLowerCase()));
+            setPurchasedNFTs(myResolved.filter(n =>
+              n.owner?.toLowerCase() === wallet.toLowerCase() &&
+              n.seller?.toLowerCase() !== wallet.toLowerCase()
+            ));
+          } catch (_) {}
+        }
+      }
+    } catch (chainErr) {
+      console.log("Blockchain connection failed, falling back to DB...");
       blockchainWorking = false;
     }
 
@@ -1103,24 +1145,24 @@ function App() {
     if (!blockchainWorking) {
       setBlockchainOnline(false);
       try {
-        const res    = await axios.get(`${API}/api/nfts/all`);
+        const res = await axios.get(`${API}/api/nfts/all`);
         const dbNFTs = (res.data || []).map(n => ({
-          tokenId:     n.tokenId || n._id,
-          name:        n.name        || "Unnamed NFT",
+          tokenId: n.tokenId || n._id,
+          name: n.name || "Unnamed NFT",
           description: n.description || "",
-          image:       n.image       || "",
-          price:       n.price       || "0",
-          seller:      n.seller      || n.owner || "",
-          owner:       n.owner       || "",
-          category:    n.category    || "Gaming",
-          fromDB:      true,
+          image: n.image || "",
+          price: n.price || "0",
+          seller: n.seller || n.owner || "",
+          owner: n.owner || "",
+          category: n.category || "Gaming",
+          fromDB: true,
         }));
         setMarketNFTs(dbNFTs);
-      } catch(dbErr) {
+      } catch (dbErr) {
+        console.error("Database fetch failed:", dbErr);
         setMarketNFTs([]);
       }
     }
-
     setLoading(false);
   }
 
