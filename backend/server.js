@@ -14,8 +14,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     const allowed = [
-      "http://localhost:3000",
-      "http://localhost:3001",
+      "https://localhost:3000",
+      "https://localhost:3001",
     ];
     
     if (
